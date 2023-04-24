@@ -1,0 +1,83 @@
+version: "3.9"
+volumes:
+  songs_data:  # Create a volume core_data that will contain the data for 'songs_persistence', such that when the container is stopped / crashes, the data remains.
+  users_data:
+  friends_data:
+services:
+  # Users microservice.
+  users_persistence:
+    image: docker.io/postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      # Map the users_persistence folder to the docker-entrypoint-initdb.d folder in the container.
+      # This will ensure that the necessary files are present in the container for initializing the database(s).
+      - ./users_persistence:/docker-entrypoint-initdb.d
+      # Map the psql data from the container to a virtual volume, thus preserving the data after the container is stopped.
+      - users_data:/var/lib/postgresql/data
+  users:
+    build:
+      context: ./users
+      dockerfile: ../base/Dockerfile
+    ports:
+      - 5002:5000
+    # Mount the users folder to the container, such that the code is available in the container (needed for hot reloading).
+    volumes:
+      - ./users:/app
+    depends_on:
+      - users_persistence
+  # Songs microservice.
+  songs_persistence:
+    image: docker.io/postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres  # Can be any username & password combination, but we need to use the same combination in the code in 'songs'
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      # Map the songs_persistence folder to the docker-entrypoint-initdb.d folder in the container.
+      # This will ensure that the necessary files are present in the container for initializing the database(s)
+      - ./songs_persistence/:/docker-entrypoint-initdb.d
+      # Map the psql data from the container to a virtual volume, thus preserving the data after the container is stopped.
+      - songs_data:/var/lib/postgresql/data
+
+  songs:
+    build:
+      context: ./songs
+      dockerfile: ../base/Dockerfile
+    ports:
+      - 5001:5000
+    depends_on:
+      - songs_persistence
+
+  # Friends microservice.
+  friends_persistence:
+    image: docker.io/postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./friends_persistence:/docker-entrypoint-initdb.d
+      - friends_data:/var/lib/postgresql/data
+    depends_on:
+      - users_persistence
+  friends:
+    build:
+      context: ./friends
+      dockerfile: ../base/Dockerfile
+    ports:
+      - 5003:5000
+    volumes:
+      - ./friends:/app
+    depends_on:
+      - users_persistence
+      - friends_persistence
+      - users
+
+  gui:
+    build: ./gui
+    ports:
+      - 5000:5000
+

@@ -1,0 +1,1 @@
+When I tried running the command `docker compose up songs_persistence`, I kept getting the following error "usr/local/bin/docker-entrypoint.sh: /docker-entrypoint-initdb.d/init.sh: /bin/bash: bad interpreter: Permission denied". I fixed this by using by giving executing permission to the `./init.sh` file using `chmod +x ./init.sh`.
