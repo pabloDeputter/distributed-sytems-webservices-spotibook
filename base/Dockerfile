@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Base image.
 FROM python:3.8-slim-buster
 
@@ -14,3 +15,4 @@ ENV FLASK_DEBUG=1
 
 # Set command to run the app.
 CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
+

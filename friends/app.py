@@ -37,6 +37,7 @@ class AddFriend(Resource):
 
     Response:
     - 200 OK: The friend was added successfully.
+    - 400 Bad Request: The user tried to add themselves as a friend.
     - 404 Not Found: The user requesting the friendship or friend could not be found in the database.
     - 409 Conflict: The friendship already exists.
     """
@@ -48,6 +49,10 @@ class AddFriend(Resource):
         parser.add_argument('username_friend', type=str, required=True)
         args = parser.parse_args()
 
+        # Check if user friends themselves.
+        if args['username'] == args['username_friend']:
+            return {'message': 'You cannot add yourself as a friend'}, 400
+
         # Check if the user that requested the friendship exists.
         response = requests.get(f'{users_microservice_url}/users/exists?username={args["username"]}')
         # Check if friend exists.
@@ -58,15 +63,17 @@ class AddFriend(Resource):
             return {'message': 'User or friend not found'}, 404
         # Check if the friend relationship already exists in db.
         cursor.execute(
-            "INSERT INTO friends (username, username_friend) VALUES (%s, %s) ON CONFLICT (username, username_friend) DO NOTHING",
-            (args['username'], args['username_friend']))
+            "INSERT INTO friends (username, username_friend) \
+             SELECT %s, %s WHERE NOT EXISTS \
+             (SELECT * FROM friends WHERE (username = %s AND username_friend = %s) OR (username = %s AND username_friend = %s));",
+            (args['username'], args['username_friend'], args['username'], args['username_friend'],
+             args['username_friend'], args['username']))
         conn.commit()
-        return (
-            ({'message': 'Friendship already exists'}, 409)
-            # Check the number of rows affected by the query.
-            if cursor.rowcount == 0
-            else ({'message': 'Friend added successfully'}, 200)
-        )
+
+        if cursor.rowcount == 0:
+            return {'message': 'Friendship already exists'}, 409
+        return {'message': 'Friend added successfully'}, 200
+
 
 
 class Friends(Resource):

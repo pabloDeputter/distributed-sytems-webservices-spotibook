@@ -40,7 +40,10 @@ def add_song(title, artist):
 
 def song_exists(title, artist):
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM songs (WHERE title = %s AND artist = %s);", (title, artist))
+    app.logger.info('title: %s, artist: %s', title, artist)
+    # # Added LOWER() to make the search case-insensitive.
+    # cur.execute("SELECT COUNT(*) FROM songs WHERE LOWER(title) = LOWER(%s) AND LOWER(artist) = LOWER(%s);", (title, artist))
+    cur.execute("SELECT COUNT(*) FROM songs WHERE title = %s AND artist = %s;", (title, artist))
     return bool(cur.fetchone()[0])  # Either True or False
 
 

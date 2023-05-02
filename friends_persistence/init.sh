@@ -13,8 +13,4 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "friends" <<-EOSQL
       username_friend VARCHAR(255) NOT NULL,
       CONSTRAINT unique_friend_relationship UNIQUE (username, username_friend)
     );
-    COPY friends (username, username_friend)
-    FROM '/docker-entrypoint-initdb.d/mock_friends.csv'
-    DELIMITER ','
-    CSV HEADER;
 EOSQL

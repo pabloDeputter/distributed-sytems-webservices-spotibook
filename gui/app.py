@@ -5,7 +5,10 @@ app = Flask(__name__)
 
 # Microservice urls.
 users_microservice_url = "http://users:5000"
-songs_microservice_url = "http://songs:5000/"
+friends_microservice_url = "http://friends:5000"
+songs_microservice_url = "http://songs:5000"
+playlists_microservice_url = "http://playlists:5000"
+activities_microservice_url = "http://activities:5000"
 
 # The Username & Password of the currently logged-in User
 username = None
@@ -22,6 +25,28 @@ def load_from_session(key):
     return session_data.pop(key) if key in session_data else None  # Pop to ensure that it is only used once
 
 
+def format_activity(act: dict) -> tuple:
+    """
+    Format a user activity dictionary into a tuple with a standardized format.
+
+    :param act: A dictionary representing a user activity.
+
+    :return: A tuple with three elements:
+                - A string representing the timestamp of the activity.
+                - A string representing a formatted message about the activity.
+                - A string representing the username of the user performing the activity.
+    """
+    if act['activity_type'] == 'create_playlist':
+        return act['timestamp'], act['username'], f'{act["activity_type"]} | created playlist {act["playlist_id"]}'
+    elif act['activity_type'] == 'add_song':
+        return act['timestamp'], act['username'],\
+            f'{act["activity_type"]} add song {act["song_artist"]} | added {act["song_title"]} to {act["playlist_id"]}'
+    elif act['activity_type'] == 'make_friend':
+        return act['timestamp'], act['username'], f'{act["activity_type"]} | {act["username"]} befriended {act["username_friend"]}'
+    elif act['activity_type'] == 'share_playlist':
+        return act['timestamp'], act['username'], \
+            f'{act["activity_type"]} | {act["username"]} shared playlist {act["playlist_id"]} with {act["username_friend"]}'
+
 @app.route("/")
 def feed():
     # ================================
@@ -33,9 +58,14 @@ def feed():
     global username
 
     N = 10
-
     if username is not None:
-        feed = []  # TODO: call
+        feed = []
+        # Retrieve the N latest activities from friends and sort them in descending order.
+        response = requests.get(f'{activities_microservice_url}/activities/{username}?n={N}&sort=desc')
+
+        # Check if status code of response is 200.
+        if response.status_code == 200:
+            feed = [format_activity(activity) for activity in response.json()['activities']]
     else:
         feed = []
 
@@ -66,9 +96,9 @@ def actual_login():
     # microservice returns True if correct combination, False if otherwise.
     # Also pay attention to the status code returned by the microservice.
     # ================================
-    
+
     # Send post request to Users microservice to login.
-    response = requests.post(f"{users_microservice_url}/user/login",
+    response = requests.post(f"{users_microservice_url}/users/login",
                              json={"username": req_username, "password": req_password})
     # If status code is 200, login is successful.
     success = response.status_code == 200
@@ -90,7 +120,6 @@ def register_page():
 
 @app.route("/register", methods=['POST'])
 def actual_register():
-
     req_username, req_password = request.form['username'], request.form['password']
 
     # ================================
@@ -103,7 +132,7 @@ def actual_register():
     # ================================
 
     # Send post request to Users microservice to register a new user.
-    response = requests.post(f"{users_microservice_url}/user/register",
+    response = requests.post(f"{users_microservice_url}/users/register",
                              json={"username": req_username, "password": req_password})
     # If status code is 201, registration is successful.
     success = response.status_code == 201
@@ -130,10 +159,14 @@ def friends():
     # Get a list of friends for the currently logged-in user
     # ================================
 
+    friend_list = []
     if username is not None:
-        friend_list = []
-    else:
-        friend_list = []  # TODO: call
+        # Send post request to Friends microservice to retrieve friends.
+        response = requests.get(f"{friends_microservice_url}/friends/{username}")
+        # If status code is 200, user exists, we can retrieve the friends.
+        if response.status_code == 200:
+            # Response is a list of dictionaries, so we retrieve the usernames.
+            friend_list = [i['username'] for i in response.json()['friends']]
 
     return render_template('friends.html', username=username, password=password, success=success,
                            friend_list=friend_list)
@@ -151,7 +184,18 @@ def add_friend():
     global username
     req_username = request.form['username']
 
-    success = None  # TODO: call
+    # Send post request to Friends microservice to add a friend.
+    response = requests.post(f"{friends_microservice_url}/friends/add",
+                             json={"username": username, "username_friend": req_username})
+    if response.status_code == 200:
+        # Create new activity.
+        requests.post(f'{activities_microservice_url}/activities/make-friend', json={
+            'username': username,
+            'username_friend': req_username
+        })
+
+    # If status code is 200, friend request is successful.
+    success = response.status_code == 200
     save_to_session('success', success)
 
     return redirect('/friends')
@@ -171,8 +215,13 @@ def playlists():
         # Get all playlists you created and all playlist that are shared with you. (list of id, title pairs)
         # ================================
 
-        my_playlists = []  # TODO: call
-        shared_with_me = []  # TODO: call
+        # Send get request to Playlists microservice to retrieve both own playlist and shared playlists.
+        response_own = requests.get(f'{playlists_microservice_url}/playlists?username={username}').json()
+        response_shared = requests.get(f'{playlists_microservice_url}/playlists/shared?username={username}').json()
+
+        # Convert response from list of dict. to list of tuples.
+        my_playlists = [(playlist['id'], playlist['name']) for playlist in response_own['playlists']]
+        shared_with_me = [(playlist['id'], playlist['name']) for playlist in response_shared['playlists']]
 
     return render_template('playlists.html', username=username, password=password, my_playlists=my_playlists,
                            shared_with_me=shared_with_me)
@@ -187,8 +236,18 @@ def create_playlist():
     # ================================
     global username
     title = request.form['title']
+    # Send post request to Playlists microservice to create a playlist.
+    response = requests.post(f'{playlists_microservice_url}/playlists',
+                             json={'owner': username, 'name': title})
+    # If status code is 201, playlist is created. (check documentation of endpoint to check what can go wrong)
+    if response.status_code == 201:
+        # Send post request to activities microservice to create new create_playlist activity.
+        requests.post(f'{activities_microservice_url}/activities/create-playlist', json={
+            'username': username,
+            # Retrieve id of last created playlist.
+            'playlist_id': requests.get(f'{playlists_microservice_url}/playlists').json()['playlists'][-1]['id']
+        })
 
-    # TODO: call
 
     return redirect('/playlists')
 
@@ -200,7 +259,10 @@ def a_playlist(playlist_id):
     #
     # List all songs within a playlist
     # ================================
-    songs = []  # TODO: call
+    # Send post request to Playlists microservice to retrieve all songs within playlist.
+    response = requests.get(f'{playlists_microservice_url}/playlists/{playlist_id}').json()
+    songs = [(song['song_title'], song['song_artist']) for song in response['songs']]
+
     return render_template('a_playlist.html', username=username, password=password, songs=songs,
                            playlist_id=playlist_id)
 
@@ -214,7 +276,21 @@ def add_song_to_playlist(playlist_id):
     # ================================
     title, artist = request.form['title'], request.form['artist']
 
-    # TODO: call
+    # Send post request to Playlists microservice to add a song to a playlist.
+    response = requests.post(f'{playlists_microservice_url}/playlists/{playlist_id}',
+                             json={'song_title': title, 'song_artist': artist})
+
+    if response.status_code == 200:
+        # Send request to Activities microservice to create new add_song activity.
+        requests.post(f'{activities_microservice_url}/activities/add-song', json={
+            'username': username,
+            'playlist_id': playlist_id,
+            'song_artist': artist,
+            'song_title': title
+        })
+
+
+    # If status code is 200, song is added to playlist successfully. (check documentation of endpoint to check what can go wrong)
     return redirect(f'/playlists/{playlist_id}')
 
 
@@ -226,8 +302,18 @@ def invite_user_to_playlist(playlist_id):
     # Share a playlist (represented by an id) with a user.
     # ================================
     recipient = request.form['user']
+    # Send post request to Playlists microservice to share a playlist with recipient.
+    response = requests.post(f'{playlists_microservice_url}/playlists/{playlist_id}/shares',
+                  json={'recipient': recipient})
 
-    # TODO: call
+    if response.status_code == 200:
+        # Send request to Activities microservice to create new share_playlist activity.
+        requests.post(f'{activities_microservice_url}/activities/share-playlist', json={
+            'username': username,
+            'username_friend': recipient,
+            'playlist_id': playlist_id,
+        })
+
     return redirect(f'/playlists/{playlist_id}')
 
 
@@ -241,4 +327,4 @@ def logout():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', debug=True)
