@@ -187,12 +187,6 @@ def add_friend():
     # Send post request to Friends microservice to add a friend.
     response = requests.post(f"{friends_microservice_url}/friends/add",
                              json={"username": username, "username_friend": req_username})
-    if response.status_code == 200:
-        # Create new activity.
-        requests.post(f'{activities_microservice_url}/activities/make-friend', json={
-            'username': username,
-            'username_friend': req_username
-        })
 
     # If status code is 200, friend request is successful.
     success = response.status_code == 200
@@ -240,14 +234,6 @@ def create_playlist():
     response = requests.post(f'{playlists_microservice_url}/playlists',
                              json={'owner': username, 'name': title})
     # If status code is 201, playlist is created. (check documentation of endpoint to check what can go wrong)
-    if response.status_code == 201:
-        # Send post request to activities microservice to create new create_playlist activity.
-        requests.post(f'{activities_microservice_url}/activities/create-playlist', json={
-            'username': username,
-            # Retrieve id of last created playlist.
-            'playlist_id': requests.get(f'{playlists_microservice_url}/playlists').json()['playlists'][-1]['id']
-        })
-
 
     return redirect('/playlists')
 
@@ -278,16 +264,7 @@ def add_song_to_playlist(playlist_id):
 
     # Send post request to Playlists microservice to add a song to a playlist.
     response = requests.post(f'{playlists_microservice_url}/playlists/{playlist_id}',
-                             json={'song_title': title, 'song_artist': artist})
-
-    if response.status_code == 200:
-        # Send request to Activities microservice to create new add_song activity.
-        requests.post(f'{activities_microservice_url}/activities/add-song', json={
-            'username': username,
-            'playlist_id': playlist_id,
-            'song_artist': artist,
-            'song_title': title
-        })
+                             json={'song_title': title, 'song_artist': artist, 'added_by': username})
 
 
     # If status code is 200, song is added to playlist successfully. (check documentation of endpoint to check what can go wrong)
@@ -306,13 +283,6 @@ def invite_user_to_playlist(playlist_id):
     response = requests.post(f'{playlists_microservice_url}/playlists/{playlist_id}/shares',
                   json={'recipient': recipient})
 
-    if response.status_code == 200:
-        # Send request to Activities microservice to create new share_playlist activity.
-        requests.post(f'{activities_microservice_url}/activities/share-playlist', json={
-            'username': username,
-            'username_friend': recipient,
-            'playlist_id': playlist_id,
-        })
 
     return redirect(f'/playlists/{playlist_id}')
 

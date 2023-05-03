@@ -32,11 +32,11 @@ since they all use the same image.
         - Consumes Songs Service API to retrieve songs.
         - Consumes Playlists Service API to retrieve playlists of a user, add songs, share playlist and creating
           playlists.
-        - Consumes Activities Service API to create activities and retrieve activities of a user.
+        - Consumes Activities Service API to retrieve activities of a users friends.
 
 The GUI Service is responsible for the user interface of the application, providing a way for users to interact with the
 system. It groups together features related to user authentication, friend management, playlist management, and activity
-feed generation, as these are all key components of the application.
+retrieval, as these are all key components of the application.
 
 - Songs Service:
     - Database:
@@ -69,6 +69,7 @@ microservice, the system can enforce consistent and secure user authentication a
         - Friends Database (friends_persistence), storing of friendship relationships.
     - Communication:
         - Interacts with friends_persistence to retrieve/store friendship relationships.
+        - Consumes Activities Service API to create new activities.
         - Consumes Users Service API to validate user existence.
         - Exposes RESTful API for other microservices to access friend relationships and add friend relationships.
 
@@ -86,6 +87,7 @@ separately from other features, allowing for better scalability and modularity.
         - Playlists Database (playlists_persistence), storing of playlists, playlist songs and shared playlists.
     - Communication:
         - Interacts with playlists_perstistence to retrieve/store playlist information.
+        - Consumes Activities Service API to create new activities.
         - Consumes Users Service API to validate user existence.
         - Consumes Songs Service API to validate song existence.
         - Exposes RESTful API for other microservices to access playlists, playlist songs and shared playlists, create
@@ -500,6 +502,7 @@ The request must include the following data:
 
 - `song_artist`: The artist of the song to be added.
 - `song_title`: The title of the song to be added.
+- `added_by`: The username of the user adding the song.
 - `playlist_id`: The ID of the playlist to which the song should be added.
 
 #### Response

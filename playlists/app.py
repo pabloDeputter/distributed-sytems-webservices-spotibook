@@ -11,6 +11,7 @@ api = Api(app)
 # Microservice URLs.
 users_microservice_url = "http://users:5000"
 songs_microservice_url = "http://songs:5000"
+activities_microservice_url = "http://activities:5000"
 
 conn = None
 
@@ -120,6 +121,13 @@ class Playlists(Resource):
             VALUES (%s, %s);", (args['name'], args['owner']))
         conn.commit()
 
+        # Send post request to activities microservice to create new create_playlist activity.
+        requests.post(f'{activities_microservice_url}/activities/create-playlist', json={
+            'username': args['owner'],
+            # Retrieve id of last created playlist.
+            'playlist_id': cursor.lastrowid
+        })
+
         return {'message': 'Playlist was created successfully'}, 201
 
 
@@ -140,6 +148,7 @@ class Playlist(Resource):
     Request data:
     - song_artist: The artist of the song to be added.
     - song_title: The title of the song to be added.
+    - added_by: The username of the user who added the song.
 
     Response:
     - 200 OK: The song was added to the playlist successfully.
@@ -169,6 +178,7 @@ class Playlist(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('song_artist', type=str, required=True)
         parser.add_argument('song_title', type=str, required=True)
+        parser.add_argument('added_by', type=str, required=True)
         args = parser.parse_args()
 
         # Return 404 Not Found if playlist doesn't exist.
@@ -185,6 +195,14 @@ class Playlist(Resource):
             "INSERT INTO playlist_songs (playlist_id, song_artist, song_title) \
             VALUES (%s, %s, %s);", (playlist_id, args['song_artist'], args['song_title']))
         conn.commit()
+
+        # Send request to Activities microservice to create new add_song activity.
+        requests.post(f'{activities_microservice_url}/activities/add-song', json={
+            'username': args['added_by'],
+            'playlist_id': playlist_id,
+            'song_artist': args['song_artist'],
+            'song_title': args['song_title']
+        })
 
         return {'message': 'Song added to playlist successfully'}, 200
 
@@ -241,6 +259,13 @@ class PlaylistShare(Resource):
             "INSERT INTO playlist_shares (playlist_id, username) \
             VALUES (%s, %s);", (playlist_id, args['recipient']))
         conn.commit()
+
+        # Send request to Activities microservice to create new share_playlist activity.
+        requests.post(f'{activities_microservice_url}/activities/share-playlist', json={
+            'username': owner,
+            'username_friend': args['recipient'],
+            'playlist_id': playlist_id,
+        })
 
         return {'message': 'Playlist shared successfully'}, 200
 

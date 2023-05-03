@@ -10,6 +10,7 @@ api = Api(app)
 
 # Microservice URLs.
 users_microservice_url = "http://users:5000"
+activities_microservice_url = "http://activities:5000"
 
 conn = None
 
@@ -72,6 +73,11 @@ class AddFriend(Resource):
 
         if cursor.rowcount == 0:
             return {'message': 'Friendship already exists'}, 409
+        # Create new activity.
+        requests.post(f'{activities_microservice_url}/activities/make-friend', json={
+            'username': args['username'],
+            'username_friend': args['username_friend']
+        })
         return {'message': 'Friend added successfully'}, 200
 
 

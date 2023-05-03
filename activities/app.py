@@ -127,23 +127,29 @@ class ActivitiesFriends(Resource):
         # It doesn't matter if user A or user B added each other as friend, both are seen as an activity, by separate users.
         # The same goes for sharing playlists.
         cursor.execute("""
-            WITH combined_activities AS (
-                SELECT 'create_playlist' AS activity_type, username, NULL as username_friend, NULL AS song_artist, NULL AS song_title, playlist_id, activity_timestamp
-                FROM activity_create_playlist
-                UNION ALL
-                SELECT 'add_song' AS activity_type, username, NULL as username_friend, song_artist, song_title, playlist_id, activity_timestamp
-                FROM activity_add_song
-                UNION ALL
-                SELECT 'make_friend' AS activity_type, username, username_friend, NULL AS song_artist, NULL AS song_title, NULL AS playlist_id, activity_timestamp
-                FROM activity_make_friend
-                UNION ALL
-                SELECT 'share_playlist' AS activity_type, username, username_friend, NULL AS song_artist, NULL AS song_title, playlist_id, activity_timestamp
-                FROM activity_share_playlist)
-            SELECT *
-            FROM combined_activities
-            WHERE username IN %s
-            ORDER BY activity_timestamp {sort_order}
-            LIMIT {limit};""".format(sort_order=sort.upper(), limit=n), (tuple(friends),))
+                    WITH combined_activities AS (
+                        SELECT 'create_playlist' AS activity_type, username, NULL as username_friend, NULL AS song_artist, NULL AS song_title, playlist_id, activity_timestamp
+                        FROM activity_create_playlist
+                        WHERE username IN %s
+                        UNION ALL
+                        SELECT 'add_song' AS activity_type, username, NULL as username_friend, song_artist, song_title, playlist_id, activity_timestamp
+                        FROM activity_add_song
+                        WHERE username IN %s
+                        UNION ALL
+                        SELECT 'make_friend' AS activity_type, username, username_friend, NULL AS song_artist, NULL AS song_title, NULL AS playlist_id, activity_timestamp
+                        FROM activity_make_friend
+                        WHERE (username IN %s AND username_friend != %s) OR (username_friend IN %s AND username != %s)
+                        UNION ALL
+                        SELECT 'share_playlist' AS activity_type, username, username_friend, NULL AS song_artist, NULL AS song_title, playlist_id, activity_timestamp
+                        FROM activity_share_playlist
+                        WHERE (username IN %s AND username_friend != %s) OR (username_friend IN %s AND username != %s))
+                    SELECT *
+                    FROM combined_activities
+                    ORDER BY activity_timestamp {sort_order}
+                    LIMIT {limit};""".format(sort_order=sort.upper(), limit=n),
+                       (tuple(friends), tuple(friends), tuple(friends), username, tuple(friends), username,
+                        tuple(friends), username, tuple(friends), username))
+
 
         activities = [
             {

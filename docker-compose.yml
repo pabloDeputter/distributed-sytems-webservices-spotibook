@@ -77,6 +77,7 @@ services:
     depends_on:
       - friends_persistence
       - users
+      - activities
 
   # Playlists microservice.
   playlists_persistence:
@@ -100,6 +101,7 @@ services:
       - playlists_persistence
       - songs
       - users
+      - activities
 
   # Activity microservice.
   activities_persistence:
@@ -121,7 +123,7 @@ services:
       - ./activities:/app
     depends_on:
       - activities_persistence
-      - friends
+
 
   # GUI microservice.
   gui:
